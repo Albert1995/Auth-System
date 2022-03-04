@@ -1,0 +1,43 @@
+{% extends "main.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div style="height: 100vh;">
+    <div class="columns is-align-items-center" style="height: 100%; margin-top: 0; margin-right: 0;">
+        <div class="column is-4 is-offset-4">
+            <form method="POST">
+                <div class="card">
+                    <div class="card-content">
+                        <p class="title">Member Area Login</p>
+
+                        {% if msg_error %}
+                        <article class="message is-danger">
+                            <div class="message-body">
+                                {{ msg_error }}
+                            </div>
+                        </article>
+                        {% endif %}
+
+                        <div class="field">
+                            <label for="email" class="label">E-mail</label>
+                            <div class="control"><input type="text" class="input" name="email"></div>
+                        </div>
+
+                        <div class="field">
+                            <label for="password" class="label">Password</label>
+                            <div class="control"><input type="password" class="input" name="password"></div>
+                            <a href="#">Forgot Password?</a>
+                        </div>
+
+                        <div class="flex is-flex-direction-column is-align-items-stretch">
+                            <button type="submit" class="button is-primary" style="margin-bottom: 1rem;">Login</button>
+                            <span class="text-center">
+                                Not a member? <a href="#">Sign up!</a>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
