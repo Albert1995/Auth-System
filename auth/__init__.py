@@ -87,23 +87,29 @@ def signup():
     if msg_errors:
         return render_template("signup.html", msg_errors=msg_errors)
 
-    users[email] = {"password": password}
+    users[email] = {"password": password, "email": email}
 
     return redirect(url_for("auth_page", msg="new_user"))
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    del session["token"]
+    for user in users.items():
+        if user[1]["token"] == session["token"]:
+            user[1]["token"] = ""
+            break
+
+    session["token"] = ""
     return redirect(url_for("auth_page", msg="logout_user"))
 
 
 @app.route("/delete", methods=["POST"])
 def delete_user():
-    for email in users.items():
-        if users[email]["token"] == session["token"]:
-            email_to_del = email
+    for user in users.values():
+        if user["token"] == session["token"]:
+            email_to_del = user["email"]
             break
+
     del users[email_to_del]
-    del session["token"]
+    session["token"] = ""
     return redirect(url_for("auth_page", msg="delete_user"))
