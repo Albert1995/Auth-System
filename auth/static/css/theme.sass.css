@@ -7794,4 +7794,7 @@ a.has-text-danger-dark:hover, a.has-text-danger-dark:focus {
 .text-center {
   text-align: center; }
 
+body {
+  background-color: #CBBAED; }
+
 /*# sourceMappingURL=theme.sass.css.map */

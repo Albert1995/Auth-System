@@ -1,29 +1,41 @@
-from crypt import methods
-from flask import Flask, render_template, request
+from uuid import uuid4
+from flask import Flask, redirect, render_template, request, session, url_for
 from sassutils.wsgi import SassMiddleware
 
 app = Flask(__name__)
+app.secret_key = str(uuid4())
 
-users = [
-    {
-        "email": "test@domain.com",
-        "password": "123"
-    }
-]
+users = {}
 
-app.wsgi_app = SassMiddleware(
-    app.wsgi_app, {"auth": ("static/sass", "static/css", "/static/css")}
-)
+msg_success = {
+    "new_user": "User created successfully",
+    "logout_user": "You logout the system",
+    "delete_user": "You deleted your account successfully",
+}
+
+if app.config["ENV"] == "development":
+    app.wsgi_app = SassMiddleware(
+        app.wsgi_app, {"auth": ("static/sass", "static/css", "/static/css")}
+    )
 
 
-def validate_authentication(email, password):
-    return email == "test.email@domain.com" and password == "123"
+def validate_authentication(email, password) -> bool:
+    return email in users and users[email]["password"] == password
+
+
+def create_token_for(email: str):
+    session["token"] = str(uuid4())
+    users[email]["token"] = session["token"]
 
 
 @app.route("/", methods=["GET", "POST"])
 def auth_page():
     if request.method == "GET":
-        return render_template("login.html")
+        if session.get("token"):
+            return render_template("welcome.html")
+        return render_template(
+            "login.html", msg_success=msg_success.get(request.args.get("msg"))
+        )
 
     email = request.form.get("email")
     password = request.form.get("password")
@@ -35,6 +47,7 @@ def auth_page():
         )
 
     if validate_authentication(email, password):
+        create_token_for(email)
         return render_template("welcome.html")
 
     return render_template(
@@ -42,36 +55,55 @@ def auth_page():
     )
 
 
-@app.route("/page/<page>")
-def go_to_page(page: str):
-    return render_template(f"{page}.html")
-
-
-@app.route("/signup", methods=["POST"])
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
+    if request.method == "GET":
+        return render_template("signup.html")
+
+    if request.form.get("act") == "cancel":
+        return redirect("/")
+
     email = request.form.get("email")
     password = request.form.get("password")
     confirm_password = request.form.get("confirm-password")
-    
+
     msg_errors = []
-    
+
     if not email:
         msg_errors.append("E-mail is required")
-        
+
     if not password:
         msg_errors.append("Password is required")
-        
+
     if not confirm_password:
         msg_errors.append("Confirm Password is required")
-        
-    if email and email in [user["email"] for user in users]:
+
+    if email and email in users:
         msg_errors.append("E-mail already in use, please choose another one")
-    
+
     if password and confirm_password and password != confirm_password:
         msg_errors.append("Password and its confirmation are different")
-        
+
     if msg_errors:
         return render_template("signup.html", msg_errors=msg_errors)
-    
-    return render_template("login.html", msg_success="User created successfully")
-        
+
+    users[email] = {"password": password}
+
+    return redirect(url_for("auth_page", msg="new_user"))
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    del session["token"]
+    return redirect(url_for("auth_page", msg="logout_user"))
+
+
+@app.route("/delete", methods=["POST"])
+def delete_user():
+    for email in users.items():
+        if users[email]["token"] == session["token"]:
+            email_to_del = email
+            break
+    del users[email_to_del]
+    del session["token"]
+    return redirect(url_for("auth_page", msg="delete_user"))

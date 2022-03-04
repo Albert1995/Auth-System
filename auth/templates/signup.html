@@ -12,8 +12,8 @@
                         {% if msg_errors %}
                         <article class="message is-danger">
                             <div class="message-body">
-                                User creation failed, found some errors in form inputs.
-                                <ul>
+                                <span>Oops! Sorry, we cannot create a user for you, because:</span>
+                                <ul style="list-style: circle; padding-left: 2.5rem">
                                     {% for msg in msg_errors %}
                                     <li>{{ msg }}</li>
                                     {% endfor %}
@@ -24,7 +24,7 @@
 
                         <div class="field">
                             <label for="email" class="label">E-mail</label>
-                            <div class="control"><input type="text" class="input" name="email"></div>
+                            <div class="control"><input type="text" class="input" name="email" value="{{ request.form['email'] }}"></div>
                         </div>
 
                         <div class="field">
@@ -39,7 +39,7 @@
 
                         <div class="flex is-flex-direction-column is-align-items-stretch">
                             <button type="submit" class="button is-primary" style="margin-bottom: 1rem;">Sign Up</button>
-                            <button type="submit" class="button is-danger is-inverted" style="margin-bottom: 1rem;">Cancel</button>
+                            <button type="submit" value="cancel" name="act" class="button is-danger is-inverted" style="margin-bottom: 1rem;">Cancel</button>
                         </div>
                     </div>
                 </div>

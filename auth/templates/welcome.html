@@ -1,9 +1,26 @@
 {% extends "main.html" %}
-{% block title %}Member Area{% endblock %}
+{% block title %}Welcome{% endblock %}
 {% block content %}
+<div style="height: 100vh;">
+    <div class="columns is-align-items-center" style="height: 100%; margin-top: 0; margin-right: 0;">
+        <div class="column is-4 is-offset-4">
+            <form method="POST">
+                <div class="card">
+                    <div class="card-content">
+                        <p class="title">Welcome the Auth System</p>
 
-<div>
-    <h1>Welcome</h1>
+                        <p>
+                            Here you can do some actions:
+                        </p>
+
+                        <div class="flex is-align-items-stretch is-flex-direction-column" style="height: 110px; justify-content: space-evenly;">
+                            <button type="submit" class="button is-primary" formaction="logout" formmethod="POST">Log Out</button>
+                            <button type="submit" class="button is-danger" formaction="delete" formmethod="POST">Delete account</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
-
 {% endblock %}
