@@ -10,6 +10,9 @@ python = "^3.8"
 Flask = "^2.0.3"
 libsass = "^0.21.0"
 gunicorn = "^20.1.0"
+psycopg2 = "^2.9.3"
+bcrypt = "^3.2.0"
+PyJWT = "^2.3.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.1"

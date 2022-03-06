@@ -1,11 +1,13 @@
+from typing import Dict
 from uuid import uuid4
+from datetime import datetime, timezone, timedelta
+
+import bcrypt
+import jwt
 from flask import Flask, redirect, render_template, request, session, url_for
 from sassutils.wsgi import SassMiddleware
 
-app = Flask(__name__)
-app.secret_key = str(uuid4())
-
-users = {}
+from auth import config, database
 
 msg_success = {
     "new_user": "User created successfully",
@@ -13,21 +15,77 @@ msg_success = {
     "delete_user": "You deleted your account successfully",
 }
 
-if app.config["ENV"] == "development":
+app = Flask(__name__)
+env = app.config["ENV"] or "production"
+
+app.config.from_object(config.config[env])
+
+db = database.DatabaseManager(app)
+
+# Convert SASS into CSS on the fly only in development mode
+if env == "development":
     app.wsgi_app = SassMiddleware(
         app.wsgi_app, {"auth": ("static/sass", "static/css", "/static/css")}
     )
 
 
-def validate_authentication(email, password) -> bool:
-    return email in users and users[email]["password"] == password
+def search_user_by_email(email: str) -> Dict:
+    sql = "SELECT email, password FROM users WHERE email = ?"
+    sql_params = (email, )
+    
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute(sql, sql_params)
+        result = db_cursor.fetchone()
+        
+    return {
+        "email": result[0],
+        "password": result[1]
+    } if result else {}
+    
+        
+def create_user(email: str, password: str) -> None:
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute("insert into users (email, password) values (?, ?)", (email, password))
+        
+        
+def delete_user():
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute("delete from users where token = ?", (session["token"],))
+       
+
+def logout_user():
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute("update users set token = null where token = ?", (session["token"],))
+        
+def set_token_for_user_by_email(email: str, token: str):
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute("update users set token = ? where email = ?", (token, email))
+    
+
+def validate_authentication(email: str, password: str) -> bool:
+    user = search_user_by_email(email)
+    
+    if not user: 
+        return False
+    
+    return bcrypt.checkpw(password.encode(), user["password"])
 
 
-def create_token_for(email: str):
-    session["token"] = str(uuid4())
-    users[email]["token"] = session["token"]
+def create_token(email: str):
+    jwt_payload = {
+        "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=10)
+    }
+    token = jwt.encode(jwt_payload, app.config["JWT_SECRET"], algorithm="HS256")
+    
+    set_token_for_user_by_email(email, token)
+    session["token"] = token
 
-
+    
 @app.route("/", methods=["GET", "POST"])
 def auth_page():
     if request.method == "GET":
@@ -47,7 +105,7 @@ def auth_page():
         )
 
     if validate_authentication(email, password):
-        create_token_for(email)
+        create_token(email)
         return render_template("welcome.html")
 
     return render_template(
@@ -78,7 +136,7 @@ def signup():
     if not confirm_password:
         msg_errors.append("Confirm Password is required")
 
-    if email and email in users:
+    if search_user_by_email(email):
         msg_errors.append("E-mail already in use, please choose another one")
 
     if password and confirm_password and password != confirm_password:
@@ -87,29 +145,20 @@ def signup():
     if msg_errors:
         return render_template("signup.html", msg_errors=msg_errors)
 
-    users[email] = {"password": password, "email": email, "token": ""}
+    create_user(email, bcrypt.hashpw(password.encode(), bcrypt.gensalt()))
 
     return redirect(url_for("auth_page", msg="new_user"))
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    for user in users.values():
-        if user["token"] == session["token"]:
-            user["token"] = ""
-            break
-
+    logout_user()
     session["token"] = ""
     return redirect(url_for("auth_page", msg="logout_user"))
 
 
 @app.route("/delete", methods=["POST"])
-def delete_user():
-    for user in users.values():
-        if user["token"] == session["token"]:
-            email_to_del = user["email"]
-            break
-
-    del users[email_to_del]
+def delete_user_route():
+    delete_user()
     session["token"] = ""
     return redirect(url_for("auth_page", msg="delete_user"))
