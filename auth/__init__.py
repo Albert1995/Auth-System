@@ -71,7 +71,7 @@ def delete_user():
         db_cursor.execute("delete from users where token = ?", (session["token"],))
        
 
-def logout_user(email: str | None = None):
+def logout_user(email: str = None):
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
         if email:
