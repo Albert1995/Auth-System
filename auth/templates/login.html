@@ -25,6 +25,16 @@
                         </article>
                         {% endif %}
 
+                        {% if msg_warning %}
+                        <article class="message is-warning">
+                            <div class="message-body">
+                                {% autoescape false %}
+                                {{ msg_warning }}
+                                {% endautoescape %}
+                            </div>
+                        </article>
+                        {% endif %}
+
                         <div class="field">
                             <label for="email" class="label">E-mail</label>
                             <div class="control"><input type="text" class="input" name="email" value="{{ request.form['email'] }}"></div>
@@ -37,7 +47,7 @@
                         </div>
 
                         <div class="flex is-flex-direction-column is-align-items-stretch">
-                            <button type="submit" class="button is-primary" style="margin-bottom: 1rem;" formaction="/" formmethod="POST">Login</button>
+                            <button type="submit" class="button is-primary" style="margin-bottom: 1rem;">Login</button>
                             <span class="text-center">
                                 New here? <a href="/signup">Sign up!</a>
                             </span>
@@ -48,4 +58,10 @@
         </div>
     </div>
 </div>
+<script>
+    function forceLogout() {
+        document.querySelector("form").setAttribute("action", "/force-logout");
+        document.querySelector("form").submit(); 
+    }
+</script>
 {% endblock %}

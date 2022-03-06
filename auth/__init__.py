@@ -1,5 +1,5 @@
+from functools import wraps
 from typing import Dict
-from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
@@ -13,6 +13,20 @@ msg_success = {
     "new_user": "User created successfully",
     "logout_user": "You logout the system",
     "delete_user": "You deleted your account successfully",
+    "force-logout": "Force logout done!"
+}
+
+msg_warning = {
+    "login_first": "Please, login first before access internal pages",
+    "already_login": """    
+    Sorry, there is another user using your credentials.<br />
+    <a onclick="forceLogout()">Click here</a>, to force logout. 
+    If you don't recognize who are using, we do recommend you to change your password now.
+    """
+}
+
+msg_error = {
+    "login_fail": "E-mail and Password are wrong, please try again."
 }
 
 app = Flask(__name__)
@@ -30,7 +44,7 @@ if env == "development":
 
 
 def search_user_by_email(email: str) -> Dict:
-    sql = "SELECT email, password FROM users WHERE email = ?"
+    sql = "SELECT email, password, token FROM users WHERE email = ?"
     sql_params = (email, )
     
     with db.create_connection() as connection:
@@ -40,7 +54,8 @@ def search_user_by_email(email: str) -> Dict:
         
     return {
         "email": result[0],
-        "password": result[1]
+        "password": result[1],
+        "token": result[2]
     } if result else {}
     
         
@@ -56,10 +71,13 @@ def delete_user():
         db_cursor.execute("delete from users where token = ?", (session["token"],))
        
 
-def logout_user():
+def logout_user(email: str | None = None):
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
-        db_cursor.execute("update users set token = null where token = ?", (session["token"],))
+        if email:
+            db_cursor.execute("update users set token = null where email = ?", (email,))
+        else:
+            db_cursor.execute("update users set token = null where token = ?", (session["token"],))
         
 def set_token_for_user_by_email(email: str, token: str):
     with db.create_connection() as connection:
@@ -76,6 +94,21 @@ def validate_authentication(email: str, password: str) -> bool:
     return bcrypt.checkpw(password.encode(), user["password"])
 
 
+def validate_user_logged_in(email: str) -> bool:
+    user = search_user_by_email(email)
+    
+    try:
+        if user["token"]:
+            jwt.decode(user["token"], app.config["JWT_SECRET"], algorithms="HS256")
+            return True
+    except jwt.ExpiredSignatureError:
+        with db.create_connection() as connection:
+            db_cursor = connection.cursor()
+            db_cursor.execute("update users set token = null where token = ?", (user["token"],))
+    
+    return False
+    
+
 def create_token(email: str):
     jwt_payload = {
         "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=10)
@@ -84,15 +117,53 @@ def create_token(email: str):
     
     set_token_for_user_by_email(email, token)
     session["token"] = token
+    
+def validate_session() -> bool:
+    if not "token" in session or not session["token"]:
+        return False
+    
+    try:
+        jwt.decode(session["token"], app.config["JWT_SECRET"], algorithms="HS256")
+    except jwt.ExpiredSignatureError:
+        return False
+    
+    return True
+
+
+def login_required(fn):
+    @wraps(fn)
+    def wrapper():
+        if validate_session():
+            return fn()
+        
+        return redirect(url_for("login_page", msg="login_first"))
+    
+    return wrapper
+
+
+@app.route("/")
+def index():
+    if validate_session():
+        return redirect(url_for("welcome"))
+    
+    return redirect(url_for("login_page"))
+    
+    
+@app.route("/welcome")
+@login_required
+def welcome():
+    return render_template("welcome.html")
 
     
-@app.route("/", methods=["GET", "POST"])
-def auth_page():
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
     if request.method == "GET":
-        if session.get("token"):
-            return render_template("welcome.html")
+        if validate_session():
+            return redirect(url_for("welcome"))
         return render_template(
-            "login.html", msg_success=msg_success.get(request.args.get("msg"))
+            "login.html", 
+            msg_success=msg_success.get(request.args.get("msg")),
+            msg_warning=msg_warning.get(request.args.get("msg")),
         )
 
     email = request.form.get("email")
@@ -105,11 +176,18 @@ def auth_page():
         )
 
     if validate_authentication(email, password):
-        create_token(email)
-        return render_template("welcome.html")
-
+        if not validate_user_logged_in(email):
+            create_token(email)
+            return redirect(url_for("welcome"))
+        else:
+            return render_template(
+                "login.html", 
+                msg_warning=msg_warning["already_login"]
+            )
+            
     return render_template(
-        "login.html", msg_error="E-mail and Password are wrong, please try again."
+        "login.html", 
+        msg_error=msg_error["login_fail"]
     )
 
 
@@ -147,18 +225,33 @@ def signup():
 
     create_user(email, bcrypt.hashpw(password.encode(), bcrypt.gensalt()))
 
-    return redirect(url_for("auth_page", msg="new_user"))
+    return redirect(url_for("login_page", msg="new_user"))
 
 
 @app.route("/logout", methods=["POST"])
+@login_required
 def logout():
     logout_user()
     session["token"] = ""
-    return redirect(url_for("auth_page", msg="logout_user"))
+    return redirect(url_for("login_page", msg="logout_user"))
 
 
 @app.route("/delete", methods=["POST"])
+@login_required
 def delete_user_route():
     delete_user()
     session["token"] = ""
-    return redirect(url_for("auth_page", msg="delete_user"))
+    return redirect(url_for("login_page", msg="delete_user"))
+
+
+@app.route("/change-password", methods=["POST"])
+@login_required
+def change_passwd():
+    
+    return redirect(url_for("welcome", msg="change-pw-success"))
+
+
+@app.route("/force-logout", methods=["POST"])
+def force_logout():
+    logout_user(request.form["email"])
+    return redirect(url_for("login_page", msg="force-logout"))
