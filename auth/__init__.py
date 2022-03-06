@@ -44,7 +44,7 @@ if env == "development":
 
 
 def search_user_by_email(email: str) -> Dict:
-    sql = "SELECT email, password, token FROM users WHERE email = ?"
+    sql = f"SELECT email, password, token FROM users WHERE email = {db.wildcard}"
     sql_params = (email, )
     
     with db.create_connection() as connection:
@@ -62,27 +62,27 @@ def search_user_by_email(email: str) -> Dict:
 def create_user(email: str, password: str) -> None:
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
-        db_cursor.execute("insert into users (email, password) values (?, ?)", (email, password))
+        db_cursor.execute(f"insert into users (email, password) values ({db.wildcard}, {db.wildcard})", (email, password))
         
         
 def delete_user():
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
-        db_cursor.execute("delete from users where token = ?", (session["token"],))
+        db_cursor.execute(f"delete from users where token = {db.wildcard}", (session["token"],))
        
 
 def logout_user(email: str = None):
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
         if email:
-            db_cursor.execute("update users set token = null where email = ?", (email,))
+            db_cursor.execute(f"update users set token = null where email = {db.wildcard}", (email,))
         else:
-            db_cursor.execute("update users set token = null where token = ?", (session["token"],))
+            db_cursor.execute(f"update users set token = null where token = {db.wildcard}", (session["token"],))
         
 def set_token_for_user_by_email(email: str, token: str):
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
-        db_cursor.execute("update users set token = ? where email = ?", (token, email))
+        db_cursor.execute(f"update users set token = {db.wildcard} where email = {db.wildcard}", (token, email))
     
 
 def validate_authentication(email: str, password: str) -> bool:
@@ -104,7 +104,7 @@ def validate_user_logged_in(email: str) -> bool:
     except jwt.ExpiredSignatureError:
         with db.create_connection() as connection:
             db_cursor = connection.cursor()
-            db_cursor.execute("update users set token = null where token = ?", (user["token"],))
+            db_cursor.execute(f"update users set token = null where token = {db.wildcard}", (user["token"],))
     
     return False
     

@@ -23,3 +23,11 @@ class DatabaseManager(object):
             return conn
         else:
             raise Exception(f"Unrecognized '{self.app.config['DATABASE_TYPE']}' database type")
+
+    @property
+    def wildcard(self):
+        if self.app.config["DATABASE_TYPE"] == "sqlite":
+            return "?"
+        elif self.app.config["DATABASE_TYPE"] == "postgres":
+            return "%s"
+        return "?"
