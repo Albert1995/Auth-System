@@ -13,7 +13,8 @@ msg_success = {
     "new_user": "User created successfully",
     "logout_user": "You logout the system",
     "delete_user": "You deleted your account successfully",
-    "force-logout": "Force logout done!"
+    "force-logout": "Force logout done!",
+    "change-pw-success": "Password changed"
 }
 
 msg_warning = {
@@ -58,11 +59,32 @@ def search_user_by_email(email: str) -> Dict:
         "token": result[2]
     } if result else {}
     
+def search_user_by_token(token: str) -> Dict:
+    sql = f"SELECT email, password, token FROM users WHERE token = {db.wildcard}"
+    sql_params = (token, )
+    
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute(sql, sql_params)
+        result = db_cursor.fetchone()
+        
+    return {
+        "email": result[0],
+        "password": result[1],
+        "token": result[2]
+    } if result else {}
+    
         
 def create_user(email: str, password: str) -> None:
     with db.create_connection() as connection:
         db_cursor = connection.cursor()
         db_cursor.execute(f"insert into users (email, password) values ({db.wildcard}, {db.wildcard})", (email, password))
+   
+        
+def update_user_password(email: str, password: str):
+    with db.create_connection() as connection:
+        db_cursor = connection.cursor()
+        db_cursor.execute(f"update users set password = {db.wildcard} where email = {db.wildcard}", (password, email))
         
         
 def delete_user():
@@ -91,7 +113,7 @@ def validate_authentication(email: str, password: str) -> bool:
     if not user: 
         return False
     
-    return bcrypt.checkpw(password.encode(), user["password"])
+    return bcrypt.checkpw(password.encode(), user["password"].encode())
 
 
 def validate_user_logged_in(email: str) -> bool:
@@ -152,7 +174,7 @@ def index():
 @app.route("/welcome")
 @login_required
 def welcome():
-    return render_template("welcome.html")
+    return render_template("welcome.html", msg_success=msg_success.get(request.args.get("msg")))
 
     
 @app.route("/login", methods=["GET", "POST"])
@@ -223,7 +245,7 @@ def signup():
     if msg_errors:
         return render_template("signup.html", msg_errors=msg_errors)
 
-    create_user(email, bcrypt.hashpw(password.encode(), bcrypt.gensalt()))
+    create_user(email, bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
 
     return redirect(url_for("login_page", msg="new_user"))
 
@@ -244,9 +266,32 @@ def delete_user_route():
     return redirect(url_for("login_page", msg="delete_user"))
 
 
-@app.route("/change-password", methods=["POST"])
+@app.route("/change-password", methods=["GET", "POST"])
 @login_required
 def change_passwd():
+    if request.method == "GET":
+        return render_template("change_password.html")
+    
+    if request.form.get("act") == "cancel":
+        return redirect(url_for("welcome"))
+    
+    obligated_form_keys = ["old-password", "new-password", "confirm-new-password"]
+    if not all (key in request.form for key in obligated_form_keys):
+        return redirect(url_for("change_passwd", msg="All fields are required"))
+    
+    user = search_user_by_token(session["token"])
+    
+    old_password = request.form["old-password"]
+    new_password = request.form["new-password"]
+    confirm_new_password = request.form["confirm-new-password"]
+    
+    if not bcrypt.checkpw(old_password.encode(), user["password"].encode()):
+        return render_template("change_password.html", msg_error="Old password is wrong.")
+    
+    if new_password != confirm_new_password:
+        return render_template("change_password.html", msg_error="New password and confirmation are different.")
+    
+    update_user_password(user["email"], bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode())
     
     return redirect(url_for("welcome", msg="change-pw-success"))
 

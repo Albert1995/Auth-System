@@ -9,11 +9,20 @@
                     <div class="card-content">
                         <p class="title">Welcome the Auth System</p>
 
+                        {% if msg_success %}
+                        <article class="message is-success">
+                            <div class="message-body">
+                                {{ msg_success }}
+                            </div>
+                        </article>
+                        {% endif %}
+
                         <p>
                             Here you can do some actions:
                         </p>
 
-                        <div class="flex is-align-items-stretch is-flex-direction-column" style="height: 110px; justify-content: space-evenly;">
+                        <div class="flex is-align-items-stretch is-flex-direction-column" style="height: 160px; justify-content: space-evenly;">
+                            <button type="submit" class="button is-primary" formaction="change-password" formmethod="GET">Change Password</button>
                             <button type="submit" class="button is-primary" formaction="logout" formmethod="POST">Log Out</button>
                             <button type="submit" class="button is-danger" formaction="delete" formmethod="POST">Delete account</button>
                         </div>
